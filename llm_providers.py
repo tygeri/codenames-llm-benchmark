@@ -41,34 +41,64 @@ class OpenAILLM(BaseLLM):
         )
         return response.choices[0].message.content.strip()
 
+# in llm_providers.py, update the GeminiLLM class
+
 class GeminiLLM(BaseLLM):
     def __init__(self, config: Dict):
         super().__init__(config)
         genai.configure(api_key=config['api_key'])
         self.client = genai.GenerativeModel(config['model_name'])
+        self.generation_config = genai.types.GenerationConfig(
+            temperature=self.temperature,
+            candidate_count=1,
+            stop_sequences=None,
+            max_output_tokens=1024,
+            top_p=0.8,
+            top_k=40,
+        )
 
     def generate(self, messages: List[Dict], max_tokens: int) -> str:
         self._rate_limit()
-        # Convert OpenAI-style messages to Gemini format
-        prompt = self._convert_messages(messages)
-        response = self.client.generate_content(
-            prompt,
-            generation_config=genai.types.GenerationConfig(
-                temperature=self.temperature,
-                max_output_tokens=max_tokens
+        try:
+            # Convert OpenAI-style messages to Gemini format
+            prompt = self._convert_messages(messages)
+            safety_settings = {
+                "HARM_CATEGORY_HARASSMENT": "BLOCK_NONE",
+                "HARM_CATEGORY_HATE_SPEECH": "BLOCK_NONE",
+                "HARM_CATEGORY_SEXUALLY_EXPLICIT": "BLOCK_NONE",
+                "HARM_CATEGORY_DANGEROUS_CONTENT": "BLOCK_NONE",
+            }
+            
+            response = self.client.generate_content(
+                prompt,
+                generation_config=self.generation_config,
+                safety_settings=safety_settings
             )
-        )
-        return response.text.strip()
+            
+            if hasattr(response, 'text'):
+                return response.text.strip()
+            # Handle blocked response
+            return "I cannot provide an answer."
+            
+        except Exception as e:
+            if 'Resource has been exhausted' in str(e):
+                # Add longer delay for quota errors
+                time.sleep(5)
+                raise Exception("Quota exceeded, please wait")
+            raise e
 
     def _convert_messages(self, messages: List[Dict]) -> str:
         prompt = ""
         for msg in messages:
-            if msg['role'] == 'system':
-                prompt += f"Instructions: {msg['content']}\n\n"
-            elif msg['role'] == 'user':
-                prompt += f"User: {msg['content']}\n"
-            elif msg['role'] == 'assistant':
-                prompt += f"Assistant: {msg['content']}\n"
+            role = msg['role']
+            content = msg['content']
+            
+            if role == 'system':
+                prompt += f"Instructions: {content}\n\n"
+            elif role == 'user':
+                prompt += f"User: {content}\n"
+            elif role == 'assistant':
+                prompt += f"Assistant: {content}\n"
         return prompt.strip()
 
 class ClaudeLLM(BaseLLM):

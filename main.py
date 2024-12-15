@@ -1,3 +1,5 @@
+# main.py
+
 import os
 from dotenv import load_dotenv
 from benchmark import CodeNamesBenchmark
@@ -7,43 +9,56 @@ def main():
     # Load environment variables
     load_dotenv()
     
-    api_key = os.getenv("OPENAI_API_KEY")
-    
-    if not api_key:
-        raise ValueError("Missing API key. Please set OPENAI_API_KEY in .env file")
-
-    # Configure the teams
-    team_configs = {
-        "gpt4_team": {
-            "name": "gpt-4",
-            "api_key": api_key,
+    # Model configurations
+    model_configs = {
+        "gpt4": {
+            "type": "openai",
+            "model_name": "gpt-4",
+            "api_key": os.getenv("OPENAI_API_KEY"),
             "temperature": 0.7
         },
-        "gpt3_team": {
-            "name": "gpt-3.5-turbo",
-            "api_key": api_key,
+        "gpt3": {
+            "type": "openai",
+            "model_name": "gpt-3.5-turbo",
+            "api_key": os.getenv("OPENAI_API_KEY"),
+            "temperature": 0.7
+        },
+        "gemini": {
+            "type": "gemini",
+            "model_name": "gemini-2.0-flash-exp",
+            "api_key": os.getenv("GEMINI_API_KEY"),
+            "temperature": 0.7
+        },
+        "claude": {
+            "type": "claude",
+            "model_name": "claude-3-opus-20240229",
+            "api_key": os.getenv("ANTHROPIC_API_KEY"),
             "temperature": 0.7
         }
     }
 
-    # Initialize benchmark with logging
+    # Initialize benchmark
     benchmark = CodeNamesBenchmark(log_dir="game_logs")
     
+    # Choose which models to play against each other
+    team_a = "gpt4"
+    team_b = "gemini"
+    
     try:
-        print("\n=== Starting 2v2 Match ===")
-        print("Team A (GPT-4): Codemaster + Guesser")
-        print("Team B (GPT-3.5): Codemaster + Guesser")
+        print(f"\n=== Starting 2v2 Match ===")
+        print(f"Team A ({team_a}): Codemaster + Guesser")
+        print(f"Team B ({team_b}): Codemaster + Guesser")
         
         metrics = benchmark.run_matchup(
-            team_a_config=team_configs["gpt4_team"],
-            team_b_config=team_configs["gpt3_team"],
-            num_games=5
+            team_a_config=model_configs[team_a],
+            team_b_config=model_configs[team_b],
+            num_games=3
         )
 
         # Print results
         print("\n=== Match Results ===")
         for team, stats in metrics.items():
-            print(f"\n{team.upper()} ({stats['model']}):")
+            print(f"\n{team.upper()}:")
             print(f"Wins: {stats['wins']}/{stats['games_played']}")
             print(f"Win Rate: {stats['win_rate']:.2%}")
             print(f"Correct guesses: {stats['total_correct_guesses']}")
@@ -52,7 +67,7 @@ def main():
 
     except Exception as e:
         print(f"Match failed: {e}")
-        raise e  # Re-raise to see the full traceback
+        raise e
 
 if __name__ == "__main__":
     main()

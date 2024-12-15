@@ -220,13 +220,13 @@ class CodeNamesBenchmark:
         print()
 
     def run_matchup(self,
-                team_a_config: Dict,
-                team_b_config: Dict,
-                num_games: int) -> Dict:
+                    team_a_config: Dict,
+                    team_b_config: Dict,
+                    num_games: int) -> Dict:
         """Run a series of games between two teams"""
         results = {
             "team_a": {
-                "model": team_a_config["name"],
+                "model": team_a_config["model_name"],  # Changed from "name" to "model_name"
                 "games_played": 0,
                 "wins": 0,
                 "total_correct_guesses": 0,
@@ -234,7 +234,7 @@ class CodeNamesBenchmark:
                 "average_words_per_clue": []
             },
             "team_b": {
-                "model": team_b_config["name"],
+                "model": team_b_config["model_name"],  # Changed from "name" to "model_name"
                 "games_played": 0,
                 "wins": 0,
                 "total_correct_guesses": 0,
