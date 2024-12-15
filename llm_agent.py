@@ -1,9 +1,8 @@
 # llm_agent.py
 
 from typing import Dict, List, Optional
-from openai import OpenAI
-import openai
-import time
+from llm_providers import create_llm
+import time  # Added this import
 from prompts import (
     CODEMASTER_SYSTEM_PROMPT,
     GUESSER_SYSTEM_PROMPT,
@@ -15,67 +14,31 @@ from prompts import (
 class LLMAgent:
     def __init__(self, model_config: Dict):
         """Initialize an LLM agent with specific configuration"""
-        self.client = OpenAI(api_key=model_config['api_key'])
-        self.model_name = model_config['name']
-        self.temperature = model_config.get('temperature', 0.7)
-        self.role: Optional[str] = None  # 'codemaster' or 'guesser'
-        self.last_request_time = 0
-        self.min_delay = 0.5  # Minimum delay between requests in seconds
-
-    def _make_request(self, messages: List[Dict], max_tokens: int) -> str:
-        """Make an API request with rate limiting and retries"""
-        max_retries = 5
-        base_delay = 0.5  # Base delay between requests
-        
-        for attempt in range(max_retries):
-            try:
-                # Calculate time since last request
-                current_time = time.time()
-                time_since_last = current_time - self.last_request_time
-                
-                # If we haven't waited long enough, sleep for the remaining time
-                if time_since_last < self.min_delay:
-                    time.sleep(self.min_delay - time_since_last)
-                
-                # Make the request
-                response = self.client.chat.completions.create(
-                    model=self.model_name,
-                    messages=messages,
-                    temperature=self.temperature,
-                    max_tokens=max_tokens
-                )
-                
-                # Update last request time
-                self.last_request_time = time.time()
-                
-                return response.choices[0].message.content.strip()
-                
-            except openai.RateLimitError as e:
-                if attempt == max_retries - 1:  # Last attempt
-                    raise  # Re-raise the exception if we're out of retries
-                    
-                # Extract wait time from error message if possible
-                try:
-                    wait_time = float(str(e).split('Please try again in ')[1].split('s.')[0])
-                except:
-                    wait_time = base_delay * (2 ** attempt)  # Exponential backoff
-                    
-                print(f"Rate limit reached. Waiting {wait_time}s before retry...")
-                time.sleep(wait_time)
-                
-            except Exception as e:
-                if attempt == max_retries - 1:  # Last attempt
-                    raise  # Re-raise the exception if we're out of retries
-                    
-                wait_time = base_delay * (2 ** attempt)  # Exponential backoff
-                print(f"Error: {str(e)}. Retrying in {wait_time}s...")
-                time.sleep(wait_time)
+        self.llm = create_llm(model_config)
+        self.role: Optional[str] = None
 
     def initialize_role(self, role: str):
         """Set the role for this LLM agent"""
         self.role = role
         self.system_prompt = (CODEMASTER_SYSTEM_PROMPT if role == 'codemaster' 
                             else GUESSER_SYSTEM_PROMPT)
+
+    def _make_request(self, messages: List[Dict], max_tokens: int) -> str:
+        """Make an API request with retries"""
+        max_retries = 5
+        base_delay = 2.0  # Increased base delay
+        
+        for attempt in range(max_retries):
+            try:
+                return self.llm.generate(messages, max_tokens)
+            except Exception as e:
+                if attempt == max_retries - 1:
+                    raise
+                
+                # Exponential backoff with longer initial delay
+                wait_time = base_delay * (2 ** attempt)
+                print(f"API Error: {str(e)}. Retrying in {wait_time}s...")
+                time.sleep(wait_time)
 
     def give_clue(self, 
                 team: str,
