@@ -15,3 +15,6 @@ venv/
 
 # Prior files
 other/
+
+# Game logs
+game_logs/
